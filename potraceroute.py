@@ -5,9 +5,11 @@ import optparse
 import os
 import platform
 import pprint
+import re
 import select
 import socket
 import struct
+import subprocess
 import sys
 import time
 
@@ -324,7 +326,7 @@ class TracerouteHop(object):
 
 class Traceroute(object):
     '''
-    traceroute "session" object
+    traceroute "session" object where we store data re-used by each probe
     constructor returns ValueError for any conficting options
     '''
 
@@ -352,6 +354,10 @@ class Traceroute(object):
         if self.proto in ["TCP", "UDP"]:
             self.port = int(self.port)
         self.source_port = None
+        if (is_windows() or is_cygwin()) and self.options.source_ip is None:
+            self.windows_main_ip = get_windows_main_ip()
+        else:
+            self.windows_main_ip = None
         self.icmp_id = None
         self.icmp_socket = None
         self.send_tcp_socket = None
@@ -473,12 +479,15 @@ class Traceroute(object):
         self._close_sockets()
         return TracerouteHop(self, ttl, "*\ttimed out")
 
-    def bind_source_info(self, sock):
-        sip = self.options.source_ip if self.options.source_ip is not None else ''
+    def _bind_source_info(self, sock, icmp=False):
+        if self.windows_main_ip is not None:
+            sip = self.windows_main_ip
+        else:
+            sip = self.options.source_ip if self.options.source_ip is not None else ''
         sport = self.portnumber_of(self.options.source_port) if self.options.source_port is not None else 0
         if (sip, sport) == ('', 0):
             return
-        sock.bind( (sip, sport) )
+        sock.bind( (sip, sport if not ICMP else 0) )
 
     def _setup_sockets(self, ttl):
         '''
@@ -497,7 +506,7 @@ class Traceroute(object):
                 raise EnvironmentError, "Unexpected socket error: {error}: {oops}".format(error=sys.exc_value, oops=oops)
         if self.proto == "UDP":
             self.send_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, IPProtocol.number("UDP"))
-            self.bind_source_info(self.send_udp_socket)
+            self._bind_source_info(self.send_udp_socket)
             self.send_udp_socket.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl)
             self.send_udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         elif self.proto == "TCP":
@@ -506,9 +515,9 @@ class Traceroute(object):
             self.send_tcp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.send_tcp_socket.settimeout(self.options.wait_time)
             self.send_tcp_socket.setblocking(0) # non-blocking
-            self.bind_source_info(self.send_tcp_socket)
+            self._bind_source_info(self.send_tcp_socket)
 
-        self.bind_source_info(self.icmp_socket)
+        self._bind_source_info(self.icmp_socket, icmp=True)
         if self.tcp():
             self.send_tcp_socket.connect_ex((self.destination_addr, self.port))
             # we don't expect a non-blocking socket to connect immediately
@@ -625,10 +634,29 @@ def android_args():
     return results
 
 def is_android():
+    ''' lame way to detect Android platform '''
     return "ANDROID_STORAGE" in os.environ
 
 def is_windows():
-    return platform.system() == "Windows" or platform.system().startswith("CYGWIN")
+    ''' detect Windows platform '''
+    return platform.system() == "Windows"
+
+def is_cygwin():
+    ''' Cygwin under Windows, raw sockets don't work as well '''
+    return platform.system().startswith("CYGWIN")
+
+def get_windows_main_ip():
+    '''
+    Windows raw sockets must be bound to an interface, and you bind to
+    an interface by specifying the interface IP address. If the Windows
+    caller did not use the --source-ip option then we will assume they
+    want to use the "main" interface, the first one with a default route.
+    '''
+    routeinfo = subprocess.check_output(["netstat", "-rn"])
+    try:
+        return re.match(r'\b0\.0\.0\.0\s+0\.0\.0\.0\s+\S+\s+(\S+)', routeinfo).group(1).strip()
+    except (IndexError, AttributeError):
+        raise EnvironmentError, 'unable to parse "netstat -rn" output to determine the IP of the interface with the default route'
 
 def qpython_invocation(script=__file__):
     # are we in the Android QPython normal user environment?
@@ -663,8 +691,8 @@ def main(cmdline=sys.argv[1:]):
 
 if __name__ == "__main__":
     try:
-        if is_windows():
-            print("Warning: this code probably won't work in Windows, see https://github.com/traviscross/mtr/issues/55#issuecomment-257780611 for details")
+        if is_cygwin():
+            print("Warning: this code does not fully function under Cygwin")
         if is_android():
             qpython_invocation()
         else:

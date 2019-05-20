@@ -11,8 +11,9 @@ a traceroute utility in Python that I could easily copy onto the
 target computer (via cut/paste if necessary).
 
 ## FEATURES
-* single Python 2.7 file, runs on Linux, MacOS, NetBSD, Solaris, AIX,
-Android (with root access, tested on LineageOS 14.1 with QPython 2.5.0)
+* single Python 2.7 file, runs on Linux, MacOS, NetBSD, Windows 10,
+Solaris, AIX, Android (with root access, tested on LineageOS 14.1
+with QPython 2.5.0)
 * supports TCP/UDP/ICMP traceroute
 * says what kind of traceroute is being run and to what port, so there's
 less chance of misinterpreting the output compared to standard traceroute
@@ -123,10 +124,12 @@ print("{r} {dest}.".format(r="reached" if hop.reached else "could not reach", de
 For more examples, see the file tests/test_potraceroute.py
 
 ## LIMITATIONS / POSSIBLE FUTURE WORK
-* No longer works on Windows 7 (it used to, really!) details at
+* On Windows 10, potraceroute has tested OK under Python for Windows 2.7.16,
+but does not run properly under Cygwin 10.
+* TCP traceroute no longer works on Windows 7 (it used to, really!).
+The underlying problem (ICMP TTL Expired packets are diverted by the
+Windows networking stack and not given to the raw socket) is described at
 https://github.com/traviscross/mtr/issues/55#issuecomment-257780611
-There may be a workaround by using the Windows ICMP.DLL library, as in
-https://github.com/rabimba/p2pScrapper/blob/master/BitTorrent-5.2.2/BTL/win32icmp.py
 * ICMP probes do not work as expected on AIX and NetBSD, the network
 stack seems to ignore the TTL setting on raw ICMP sockets.
 Should be possible using a raw IP socket instead.
