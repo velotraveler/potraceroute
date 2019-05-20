@@ -487,7 +487,9 @@ class Traceroute(object):
         sport = self.portnumber_of(self.options.source_port) if self.options.source_port is not None else 0
         if (sip, sport) == ('', 0):
             return
-        sock.bind( (sip, sport if not ICMP else 0) )
+        sock.bind( (sip, sport if not icmp else 0) )
+        if icmp and sip is not '' and is_windows():
+            sock.ioctl(socket.SIO_RCVALL, socket.RCVALL_ON)
 
     def _setup_sockets(self, ttl):
         '''
@@ -654,7 +656,7 @@ def get_windows_main_ip():
     '''
     routeinfo = subprocess.check_output(["netstat", "-rn"])
     try:
-        return re.match(r'\b0\.0\.0\.0\s+0\.0\.0\.0\s+\S+\s+(\S+)', routeinfo).group(1).strip()
+        return re.search(r'\b0\.0\.0\.0\s+0\.0\.0\.0\s+\S+\s+(\S+)', routeinfo).group(1).strip()
     except (IndexError, AttributeError):
         raise EnvironmentError, 'unable to parse "netstat -rn" output to determine the IP of the interface with the default route'
 
