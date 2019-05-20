@@ -12,8 +12,8 @@ target computer (via cut/paste if necessary).
 
 ## FEATURES
 * single Python 2.7 file, runs on Linux, MacOS, NetBSD, Windows 10,
-Solaris, AIX, Android (with root access, tested on LineageOS 14.1
-with QPython 2.5.0)
+Android (with root access, tested on LineageOS 14.1 with QPython 2.5.0).
+Solaris and AIX should work too but haven't had the chance to test them.
 * supports TCP/UDP/ICMP traceroute
 * says what kind of traceroute is being run and to what port, so there's
 less chance of misinterpreting the output compared to standard traceroute
@@ -126,6 +126,7 @@ For more examples, see the file tests/test_potraceroute.py
 ## LIMITATIONS / POSSIBLE FUTURE WORK
 * On Windows 10, potraceroute has tested OK under Python for Windows 2.7.16,
 but does not run properly under Cygwin 10.
+* Still need to verify Solaris, AIX, FreeBSD
 * TCP traceroute no longer works on Windows 7 (it used to, really!).
 The underlying problem (ICMP TTL Expired packets are diverted by the
 Windows networking stack and not given to the raw socket) is described at
@@ -133,6 +134,8 @@ https://github.com/traviscross/mtr/issues/55#issuecomment-257780611
 * ICMP probes do not work as expected on AIX and NetBSD, the network
 stack seems to ignore the TTL setting on raw ICMP sockets.
 Should be possible using a raw IP socket instead.
+* TCP traceroute to 127.0.0.1 fails on NetBSD due to getsockname() returning
+EINVAL on a freshly opened non-blocking socket
 * The state of a successful TCP probe (i.e. connection accepted or
 connection refused) is not clearly returned to a programmatic caller
 * banner-wait option doesn't work if value exceeds wait-time option

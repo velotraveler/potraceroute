@@ -479,7 +479,7 @@ class Traceroute(object):
         self._close_sockets()
         return TracerouteHop(self, ttl, "*\ttimed out")
 
-    def _bind_source_info(self, sock, icmp=False):
+    def _bind_source_info(self, sock, is_icmp_socket=False):
         if self.windows_main_ip is not None:
             sip = self.windows_main_ip
         else:
@@ -487,8 +487,11 @@ class Traceroute(object):
         sport = self.portnumber_of(self.options.source_port) if self.options.source_port is not None else 0
         if (sip, sport) == ('', 0):
             return
-        sock.bind( (sip, sport if not icmp else 0) )
-        if icmp and sip is not '' and is_windows():
+        sock.bind( (sip, sport if not is_icmp_socket else 0) )
+        # if using Python for Windows, turn on raw socket "promiscuous" mode
+        # this allows UDP traceroute to work
+        # Cygwin doesn't support socket.ioctl and only ICMP mode works
+        if is_windows() and is_icmp_socket and sip is not '':
             sock.ioctl(socket.SIO_RCVALL, socket.RCVALL_ON)
 
     def _setup_sockets(self, ttl):
@@ -519,7 +522,7 @@ class Traceroute(object):
             self.send_tcp_socket.setblocking(0) # non-blocking
             self._bind_source_info(self.send_tcp_socket)
 
-        self._bind_source_info(self.icmp_socket, icmp=True)
+        self._bind_source_info(self.icmp_socket, is_icmp_socket=True)
         if self.tcp():
             self.send_tcp_socket.connect_ex((self.destination_addr, self.port))
             # we don't expect a non-blocking socket to connect immediately

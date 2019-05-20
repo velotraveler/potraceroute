@@ -1,7 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2.7
 
 import unittest
 
+import platform
 import socket
 import sys
 sys.path.append('./')
@@ -109,14 +110,17 @@ class TestPoTracerouteClasses(unittest.TestCase):
         # Assumes smtp.gmail.com exists and answers with a banner
         
         self.runConnectivityTest(["--port", "http"], "google.com", reachable=True, finalSuffix="TCP port 80 connection successful. [Reached Destination]")
-        self.runConnectivityTest(["--icmp"], "google.com", reachable=True, finalSuffix=") ICMP echo reply [Reached Destination]")
+        if platform.system() not in ['AIX', 'NetBSD']:
+            self.runConnectivityTest(["--icmp"], "google.com", reachable=True, finalSuffix=") ICMP echo reply [Reached Destination]")
         self.runConnectivityTest(["--udp", "--port", "53"], "8.8.8.8", reachable=True, finalSuffix="\\x13google-public-dns-a\\x06google\\x03com\\x00'", mustContain="UDP port 53 responded, received data:")
-        self.runConnectivityTest(["--icmp"], "8.8.8.1", reachable=False, finalSuffix="*\ttimed out")
-        self.runConnectivityTest(["--port", "1"], "127.0.0.1", reachable=True, finalSuffix="TCP port 1 connection refused [Reached Destination]")
+        if platform.system() not in ['AIX', 'NetBSD']:
+            self.runConnectivityTest(["--icmp"], "8.8.8.1", reachable=False, finalSuffix="*\ttimed out")
+        if platform.system() not in ['Windows', 'NetBSD'] and not platform.system().startswith("CYGWIN"):
+            self.runConnectivityTest(["--port", "1"], "127.0.0.1", reachable=True, finalSuffix="TCP port 1 connection refused [Reached Destination]")
         self.runConnectivityTest(["--port", "25"], "smtp.gmail.com", reachable=True, mustContain="TCP port 25 connection successful, received data: '")
 
 if __name__ == "__main__":
-    if os.getuid() != 0 and is_android():
+    if is_android() and os.getuid() != 0:
         qpython_invocation(script=__file__)
     unittest.main()
    
