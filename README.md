@@ -5,14 +5,14 @@ This project grew out of my experience as a system/network administrator
 in a heavily firewalled environment. TCP traceroute was the best
 way to check if a connection was being blocked by a firewall,
 but the Windows, Solaris, and AIX hosts on our network only supported
-UDP or ICMP traceroute.  As I didn't have the option of installing
-my own binaries on the hosts I was asked to troubleshoot, I wrote
-a traceroute utility in Python that I could easily copy onto the
-target computer (via cut/paste if necessary).
+UDP or ICMP traceroute.  Installing binaries on the hosts I was asked to
+troubleshoot was not an option, so I wrote a traceroute utility in Python
+that could be easily copied onto the target computer, via copy/paste if
+necessary.
 
 ## FEATURES
 * single Python 2.7 file runs on Linux, MacOS, NetBSD, FreeBSD, Windows
-10, Android (with root access, tested on LineageOS 14.1 with QPython 2.5.0).
+10, Android (root access needed, tested on LineageOS 14.1 with QPython 2.5.0).
 Solaris, AIX and OpenBSD should also work but have not been tested yet.
 * supports TCP/UDP/ICMP traceroute
 * says what kind of traceroute is being run and to what port, so there's
