@@ -11,9 +11,9 @@ that could be easily copied onto the target computer, via copy/paste if
 necessary.
 
 ## FEATURES
-* single Python 2.7 file runs on Linux, MacOS, NetBSD, FreeBSD, Windows
-10, Android (root access needed, tested on LineageOS 14.1 with QPython 2.5.0).
-Solaris, AIX and OpenBSD should also work but have not been tested yet.
+* single Python 2.7 file runs on Linux, MacOS, NetBSD, FreeBSD, Solaris,
+Windows 10, Android (root access needed, tested on LineageOS 14.1 with
+QPython 2.5.0).  AIX and OpenBSD should also work but not verified yet.
 * supports TCP/UDP/ICMP traceroute
 * says what kind of traceroute is being run and to what port, so there's
 less chance of misinterpreting the output compared to standard traceroute
