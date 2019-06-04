@@ -1,4 +1,9 @@
 #!/usr/bin/env python
+'''
+Multi-platform TCP/UDP/ICMP traceroute utility
+https://github.com/velotraveler/potraceroute/
+License is GPL 3.0, see LICENSE file in repository
+'''
 
 from binascii import a2b_hex as decode_hex
 import errno
@@ -670,7 +675,7 @@ def get_windows_main_ip():
     caller did not use the --source-ip option then we will assume they
     want to use the "main" interface, the first one with a default route.
     '''
-    routeinfo = subprocess.check_output(["netstat", "-rn"])
+    routeinfo = str(subprocess.check_output(["netstat", "-rn"]))
     try:
         return re.search(r'\b0\.0\.0\.0\s+0\.0\.0\.0\s+\S+\s+(\S+)', routeinfo).group(1).strip()
     except (IndexError, AttributeError):

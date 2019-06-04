@@ -58,6 +58,13 @@ class TestPoTracerouteClasses(unittest.TestCase):
         with self.assertRaises(KeyError) as testoops:
             IPProtocol.number("frog is not a protocol")
 
+    def test_windows_features(self):
+        if is_windows() or is_cygwin():
+            x = get_windows_main_ip()
+        else:
+            with self.assertRaises(EnvironmentError) as testoops:
+                x = get_windows_main_ip()
+
     def test_misc_traceroute_class(self):
         (options, args) = parse_options(["--port", knownportname, knownhost])
         t = Traceroute(options, knownhost)
