@@ -41,12 +41,15 @@ class TestPoTracerouteClasses(unittest.TestCase):
         nested = IPPacket(ICMPPacket(IPPacket(packet).payload).payload)
         self.assertEqual(nested.ip_ttl, 2, "nested packet parsing failure - ttl")
         self.assertTrue("udp payload" in str(nested.payload), "nested packet parsing failure - payload")
+        repr = IPPacket(packet).__repr__()
+        self.assertEqual(type(repr), str)
 
     def test_icmp_fields(self):
         self.assertEqual(ICMPFields.UnreachableCode(3), 'Port Unreachable')
         self.assertEqual(ICMPFields.UnreachableCode(14), str(14))
         self.assertEqual(ICMPFields.Type(11), 'TTL Exceeded')
         self.assertEqual(ICMPFields.Type(31), str(31))
+        self.assertEqual(ICMPFields.CodeString(3, 9, verbose=True), 'ICMP Network Unreachable/Network Administratively Prohibited')
 
     def test_protocol_numbers(self):
         i = IPProtocol.number("icmp")
