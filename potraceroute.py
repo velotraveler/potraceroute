@@ -345,6 +345,13 @@ class Traceroute(object):
         self.port = self.options.port
         if self.options.udp and self.options.icmp:
             raise ValueError("Cannot specify UDP and ICMP options together")
+        if self.options.payload is not None:
+            try:
+                decode_hex(options.payload)
+            except TypeError:
+                raise(ValueError("the --payload argument must be a valid hex string"))
+        if self.options.icmp and self.options.port is not None:
+            raise(ValueError("the --port option is not meaningful for ICMP traceroute"))
         if self.options.udp:
             self.proto = "UDP"
         elif self.options.icmp:
@@ -606,15 +613,6 @@ def parse_options(argv=None):
     if len(args) != 1:
         parser.error("missing destination address, please see the --help option")
 
-    if options.payload is not None:
-        try:
-            decode_hex(options.payload)
-        except TypeError:
-            parser.error("the --payload argument must be a valid hex string")
-
-    if options.icmp and options.port is not None:
-        parser.error("the --port option is not meaningful for ICMP traceroute")
-
     return (options, args)
 
 def android_args():
@@ -709,7 +707,7 @@ def main(cmdline=sys.argv[1:]):
         return 0 if thishop.reached else 1
     except (ValueError, IOError) as oops:
         print("invalid parameters: {oops}".format(oops=oops))
-        sys.exit(1)
+        return 2
 
 
 if __name__ == "__main__":

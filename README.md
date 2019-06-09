@@ -146,7 +146,7 @@ should be packaged as an app with an interface that exposes all the
 command-line options.
 
 ## SHOUTOUTS AND HAT TIPS
-Along with the NetBSD traceroute source code (which includes Van Jacobbson's
+Along with the NetBSD traceroute source code (which includes Van Jacobson's
 1988 comment "Don't use this as a coding example"), these two Python
 scripts provided useful demonstrations of traceroute:
 *  https://github.com/leonidg/Poor-Man-s-traceroute/blob/master/traceroute.py

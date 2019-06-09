@@ -75,6 +75,17 @@ class TestPoTracerouteClasses(unittest.TestCase):
         self.assertEqual(t.portnumber_of(123), 123)
         with self.assertRaises(ValueError) as testoops:
             t.portnumber_of("frog is not a service name")
+        with self.assertRaises(ValueError) as testoops:
+            (options, args) = parse_options(["--icmp", "--udp", "8.8.8.8"])
+            t = Traceroute(options, knownhost)
+        with self.assertRaises(ValueError) as testoops:
+            (options, args) = parse_options(["--icmp", "--payload", "not a hex string", "8.8.8.8"])
+            t = Traceroute(options, knownhost)
+        with self.assertRaises(socket.error) as testoops:
+            (options, args) = parse_options(["--port", "65536", "8.8.8.8"])
+            t = Traceroute(options, knownhost)
+        with self.assertRaises(SystemExit) as testoops:
+            main(["--port", "1"])
 
     def test_traceroute_init_tcp(self):
         (options, args) = parse_options(["--port", knownportname, knownhost])
@@ -125,7 +136,7 @@ class TestPoTracerouteClasses(unittest.TestCase):
         
         self.runConnectivityTest(["--port", "http"], "google.com", reachable=True, finalSuffix="TCP port 80 connection successful. [Reached Destination]")
         if platform.system() not in ['AIX', 'NetBSD']:
-            self.runConnectivityTest(["--icmp"], "google.com", reachable=True, finalSuffix=") ICMP echo reply [Reached Destination]")
+            self.runConnectivityTest(["--icmp", "--payload", "010203"], "google.com", reachable=True, finalSuffix=") ICMP echo reply [Reached Destination]")
         self.runConnectivityTest(["--udp", "--port", "53"], "8.8.8.8", reachable=True, mustContain=["\\x13google-public-dns-a\\", "UDP port 53 responded, received data:"])
         if platform.system() not in ['AIX', 'NetBSD']:
             self.runConnectivityTest(["--icmp"], "8.8.8.1", reachable=False, finalSuffix="*\ttimed out")
@@ -133,11 +144,19 @@ class TestPoTracerouteClasses(unittest.TestCase):
             self.runConnectivityTest(["--port", "1"], "127.0.0.1", reachable=True, finalSuffix="TCP port 1 connection refused [Reached Destination]")
         self.runConnectivityTest(["--port", "25"], "smtp.gmail.com", reachable=True, mustContain="TCP port 25 connection successful, received data: ")
 
+    def test_additional_coverage(self):
+        self.assertEqual(0, main(["--port", "53", "8.8.8.8"]), "unable to reach Google DNS on TCP port 53")
+        if is_windows():
+            self.assertRegexpMatches(get_windows_main_ip(), r'^\d{1,3}(\.\d{1,3}){3}$')
+        else:
+            with self.assertRaises(EnvironmentError) as testoops:
+                get_windows_main_ip()
+
 if __name__ == "__main__":
     if is_android() and os.getuid() != 0:
         qpython_invocation(script=__file__)
     unittest.main()
-   
+
 
 # test scenario - asssumes 1.0.0.99 is not a local router
 # provoke local unreachable error when writing to ping socket
