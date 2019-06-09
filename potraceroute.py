@@ -468,7 +468,7 @@ class Traceroute(object):
                         return TracerouteHop(self, ttl, "TCP port {port} connection refused".format(port=self.port), final=True, reached=True)
                     except socket.error as oops:
                         self.slist = []
-                        if oops[0] == errno.ECONNREFUSED:
+                        if oops.errno == errno.ECONNREFUSED:
                             self._close_sockets()
                             return TracerouteHop(self, ttl, "TCP port {port} connection refused".format(port=self.port), final=True, reached=True)
                         # any other error uninteresting, keep waiting
@@ -528,7 +528,7 @@ class Traceroute(object):
             self.icmp_socket.setblocking(0) # non-blocking
             self.icmp_socket.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl)
         except socket.error as oops:
-            if oops[0] == errno.EPERM:
+            if oops.errno == errno.EPERM:
                 platforminfo = " or run with a Python interpreter that has CAP_NET_RAW" if platform.system() == "Linux" else ""
                 raise IOError("Permission denied.  Try again as a privileged user" + platforminfo + ". Error was {oops}".format(oops=oops))
             else:
