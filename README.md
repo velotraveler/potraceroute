@@ -139,6 +139,11 @@ https://github.com/traviscross/mtr/issues/55#issuecomment-257780611
 * On Windows 10, potraceroute works in all modes with Python for Windows
 2.7.16, but under Cygwin 10 only ICMP mode works, presumably due to lack of
 support for SIO_RCVALL in Cygwin.
+* On Windows 10, the default configuration of Windows Defender blocks Python
+scripts from receiving the ICMP unreachable responses. The script works
+when the firewall is disabled. Custom firewall rules might allow script to
+co-exist with the firewall. The default "allow application" rules are not
+sufficient as they don't cover incoming ICMP.
 * TCP traceroute to 127.0.0.1 does not work on NetBSD 6 (EINVAL error)
 * banner-wait option doesn't work if value exceeds wait-time option
 * Android interface uses the very limited GUI provided by QPython, ideally
