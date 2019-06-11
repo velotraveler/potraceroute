@@ -11,10 +11,11 @@ that could be easily copied onto the target computer, via copy/paste if
 necessary.
 
 ## FEATURES
-* single Python 2.7 file runs on Linux, MacOS, NetBSD, FreeBSD, Solaris,
+* single Python file runs on Linux, MacOS, NetBSD, FreeBSD, Solaris,
 Windows 10, Android (root access needed, tested on LineageOS 14.1 with
 QPython 2.5.0).  AIX and OpenBSD should also work but not verified yet.
 * supports TCP/UDP/ICMP traceroute
+* runs under Python 2.7 or Python 3
 * says what kind of traceroute is being run and to what port, so there's
 less chance of misinterpreting the output compared to standard traceroute
 * shows clearly whether the destination host was reached, and whether
@@ -124,21 +125,34 @@ print("{r} {dest}.".format(r="reached" if hop.reached else "could not reach", de
 For more examples, see the file tests/test_potraceroute.py
 
 ## LIMITATIONS / POSSIBLE FUTURE WORK
+* Add MTU detection
+* ICMP probes do not work as expected on AIX and NetBSD, the network
+stack seems to ignore the TTL setting on raw ICMP sockets.
+Should be possible using a raw IP socket instead.
+* The state of a successful TCP probe (i.e. connection accepted or
+connection refused) is not clearly returned to a programmatic caller
+* Specifying options to the Traceroute class is a little clumsy
 * TCP traceroute no longer works on Windows 7 (it used to, really!).
 The underlying problem (ICMP TTL Expired packets are diverted by the
 Windows networking stack and not given to the raw socket) is described at
 https://github.com/traviscross/mtr/issues/55#issuecomment-257780611
-* On Windows 10, potraceroute works with Python for Windows 2.7.16,
-but under Cygwin 10 only ICMP mode works, presumably due to lack of
+* On Windows 10, potraceroute works in all modes with Python for Windows
+2.7.16, but under Cygwin 10 only ICMP mode works, presumably due to lack of
 support for SIO_RCVALL in Cygwin.
-* ICMP probes do not work as expected on AIX and NetBSD, the network
-stack seems to ignore the TTL setting on raw ICMP sockets.
-Should be possible using a raw IP socket instead.
-* TCP traceroute to 127.0.0.1 does not work on NetBSD 6
-* The state of a successful TCP probe (i.e. connection accepted or
-connection refused) is not clearly returned to a programmatic caller
-* Specifying options to the Traceroute class is a little clumsy
+* On Windows 10, the default configuration of Windows Defender blocks Python
+scripts from receiving the ICMP unreachable responses. The script works
+when the firewall is disabled. Custom firewall rules might allow script to
+co-exist with the firewall. The default "allow application" rules are not
+sufficient as they don't cover incoming ICMP.
+* TCP traceroute to 127.0.0.1 does not work on NetBSD 6 (EINVAL error)
 * banner-wait option doesn't work if value exceeds wait-time option
 * Android interface uses the very limited GUI provided by QPython, ideally
 should be packaged as an app with an interface that exposes all the
 command-line options.
+
+## SHOUTOUTS AND HAT TIPS
+Along with the NetBSD traceroute source code (which includes Van Jacobson's
+1988 comment "Don't use this as a coding example"), these two Python
+scripts provided useful demonstrations of traceroute:
+*  https://github.com/leonidg/Poor-Man-s-traceroute/blob/master/traceroute.py
+*  http://www.thomas-guettler.de/scripts/tcptraceroute.py.txt

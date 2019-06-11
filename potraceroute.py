@@ -1,5 +1,11 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
+'''
+Multi-platform TCP/UDP/ICMP traceroute utility
+https://github.com/velotraveler/potraceroute/
+License is GPL 3.0, see LICENSE file in repository
+'''
 
+from binascii import a2b_hex as decode_hex
 import errno
 import optparse
 import os
@@ -13,8 +19,9 @@ import subprocess
 import sys
 import time
 
-if sys.version_info[0] == 2:
-    pass  # import python3 bytes stuff?
+if sys.version_info[0] == 2:  # python2 compatibility
+    class ConnectionRefusedError(Exception):
+        pass
 
 class IPProtocol(object):
     ''' Android doesn't have a /etc/protocols file, so getprotobyname()
@@ -27,7 +34,7 @@ class IPProtocol(object):
         try:
             return IPProtocol.protocolnumbers[protocolname.upper()]
         except KeyError:
-            raise KeyError, "Unrecognized protocol string - known names are: {help}".format(help=", ".join(IPProtocol.protocolnumbers.keys()))
+            raise KeyError("Unrecognized protocol string - known names are: {help}".format(help=", ".join(IPProtocol.protocolnumbers.keys())))
 
 class ICMPFields(object):
 
@@ -91,23 +98,26 @@ class IPParse(object):
 
     @staticmethod
     def _bytes2ipstr(octets): # 4-byte string to printable IP address
-        return ".".join([str(ord(x)) for x in octets])
+        if type(octets[0]) is int:
+            return ".".join([str(x) for x in octets]) # python3
+        else:
+            return ".".join([str(ord(x)) for x in octets]) # python2
 
     @staticmethod
     def inet_checksum(packet):
         csum = 0
-        countTo = (len(packet) / 2) * 2
+        countTo = (len(packet) // 2) * 2
 
         count = 0
         while count < countTo:
-            thisVal = ord(packet[count+1]) * 256 + ord(packet[count])
+            thisVal = packet[count+1] * 256 + packet[count]
             csum = csum + thisVal
-            csum = csum & 0xffffffffL #
+            csum = csum & 0xffffffff
             count = count + 2
 
         if countTo < len(packet):
-            csum = csum + ord(packet[-1])
-            csum = csum & 0xffffffffL #
+            csum = csum + packet[-1]
+            csum = csum & 0xffffffff
 
         csum = (csum >> 16) + (csum & 0xffff)
         csum = csum + (csum >> 16)
@@ -178,7 +188,7 @@ class IPParse(object):
         kw_fields = set(kwargs.keys())
         table_fields = set([x['name'] for x in parse_table])
         if kw_fields != table_fields:
-            raise ValueError, "missing or extra keywords in call - got {kw} but expected {table}".format(kw=kw_fields, table=table_fields)
+            raise ValueError("missing or extra keywords in call - got {kw} but expected {table}".format(kw=kw_fields, table=table_fields))
         values = []
         for i in range(len(parse_table)):
             values.append(kwargs[parse_table[i]['name']])
@@ -210,10 +220,10 @@ class IPParse(object):
     def pack_icmp(payload, **kwargs):
         packet = IPParse._pack_generic(IPParse.icmp_parsetab, **kwargs) + payload
         if kwargs['icmp_checksum'] == 0:
-            checksum = IPParse.inet_checksum(packet)
+            checksum = IPParse.inet_checksum(bytearray(packet))
             kwargs['icmp_checksum'] = checksum
             packet = IPParse._pack_generic(IPParse.icmp_parsetab, **kwargs) + payload
-        assert IPParse.inet_checksum(packet) == 0
+        assert IPParse.inet_checksum(bytearray(packet)) == 0
         return packet
 
 class IPPacket(object):
@@ -319,7 +329,7 @@ class TracerouteHop(object):
             summary = "{ttl}\t{msg}{banner}{reached}".format( \
                 ttl=self.ttl, \
                 msg=self.msg, \
-                banner=", received data: {rxdata}".format(rxdata=pprint.pformat(self.rxdata)) if self.rxdata else "", \
+                banner=", received data: {rxdata}".format(rxdata=pprint.pformat(str(self.rxdata), width=1000)) if self.rxdata else "", \
                 reached=" [Reached Destination]" if self.reached and not self.rxdata else "")
         return summary
 
@@ -334,12 +344,19 @@ class Traceroute(object):
         self.options = options
         self.port = self.options.port
         if self.options.udp and self.options.icmp:
-            raise ValueError, "Cannot specify UDP and ICMP options together"
+            raise ValueError("Cannot specify UDP and ICMP options together")
+        if self.options.payload is not None:
+            try:
+                decode_hex(options.payload)
+            except TypeError:
+                raise(ValueError("the --payload argument must be a valid hex string"))
+        if self.options.icmp and self.options.port is not None:
+            raise(ValueError("the --port option is not meaningful for ICMP traceroute"))
         if self.options.udp:
             self.proto = "UDP"
         elif self.options.icmp:
             if platform.system() in ["AIX", "NetBSD"]:
-                raise ValueError, "ICMP mode not supported in AIX or NetBSD"
+                raise ValueError("ICMP mode not supported in AIX or NetBSD")
             self.proto = "ICMP"
             self.port = None
         else:
@@ -368,7 +385,7 @@ class Traceroute(object):
         try:
             self.destination_addr = socket.gethostbyname(destination)
         except socket.gaierror as oops:
-            raise ValueError, "The specified host name cannot be found: {oops}".format(oops=oops)
+            raise ValueError("The specified host name cannot be found: {oops}".format(oops=oops))
         portinfo = "" if self.proto == "ICMP" else " port {port}".format(port=self.port)
         self.header = "{proto} traceroute to {dest_name} [{dest_addr}]{portinfo}".format(proto=self.proto, dest_name=destination, dest_addr=self.destination_addr, portinfo=portinfo)
 
@@ -395,13 +412,13 @@ class Traceroute(object):
             port = int(port)
             if  port in range(0, 65536):
                 return port
-            raise socket.error, "TCP port {p} is not a 16-bit positive integer".format(p=port)
+            raise socket.error("TCP port {p} is not a 16-bit positive integer".format(p=port))
         except ValueError:
             try:
                 portnumber = socket.getservbyname(port)
                 return portnumber
             except socket.error:
-                raise ValueError, "Unrecognized service name: {p}".format(p=port)
+                raise ValueError("Unrecognized service name: {p}".format(p=port))
 
     def send_ping_packet(self, seq, data=""):
         packet = IPParse.pack_icmp(data, icmp_type=8, icmp_code=0, icmp_checksum=0, icmp_id=self.icmp_id, icmp_seq=seq)
@@ -421,7 +438,7 @@ class Traceroute(object):
         except socket.error as oops:
             return TracerouteHop(self, ttl, "Unexpected local socket error: {oops}".format(oops=oops), final=True)
 
-        banner_retries = self.options.banner_wait / sleep_interval
+        banner_retries = self.options.banner_wait // sleep_interval
 
         # loop until an interesting packet arrives or timeout
         while time.time() < deadline:
@@ -432,6 +449,7 @@ class Traceroute(object):
                     if len(readable):
                         rxdata = self.send_udp_socket.recv(120)
                         if len(rxdata):
+                            self._close_sockets()
                             return TracerouteHop(self, ttl, "UDP port {port} responded".format(port=self.port), final=True, reached=True, rxdata=rxdata)
             except socket.error:
                 pass
@@ -443,17 +461,22 @@ class Traceroute(object):
                         rxdata = self.send_tcp_socket.recv(120)
                         # no exception, but is there data to read?
                         if len(rxdata):
+                            self._close_sockets()
                             return TracerouteHop(self, ttl, "TCP port {port} connection successful".format(port=self.port), final=True, reached=True, rxdata=rxdata)
-                    except socket.error:
-                        self.send_tcp_socket.close()
+                    except ConnectionRefusedError:
+                        self._close_sockets()
+                        return TracerouteHop(self, ttl, "TCP port {port} connection refused".format(port=self.port), final=True, reached=True)
+                    except socket.error as oops:
                         self.slist = []
-                        if sys.exc_value[0] == errno.ECONNREFUSED:
+                        if oops.errno == errno.ECONNREFUSED:
+                            self._close_sockets()
                             return TracerouteHop(self, ttl, "TCP port {port} connection refused".format(port=self.port), final=True, reached=True)
                         # any other error uninteresting, keep waiting
                 elif len(writeable):
                     if banner_retries > 0: # extra sleep in case banner shows up
                         banner_retries -= 1
                         continue
+                    self._close_sockets()
                     return TracerouteHop(self, ttl, "TCP port {port} connection successful.".format(port=self.port), final=True, reached=True)
             try:
                 rx_packet, rx_ip = self.icmp_socket.recvfrom(512)
@@ -465,6 +488,7 @@ class Traceroute(object):
                     hop.msg = "ICMP echo reply"
                     hop.final = True
                     hop.reached = True
+                    self._close_sockets()
                     return hop
                 if (self.udp() or self.tcp()) and hop.icmpfields.icmp_type == 3:
                     hop.final = True  # destination unreachable, game over
@@ -504,11 +528,11 @@ class Traceroute(object):
             self.icmp_socket.setblocking(0) # non-blocking
             self.icmp_socket.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl)
         except socket.error as oops:
-            if sys.exc_value[0] == errno.EPERM:
+            if oops.errno == errno.EPERM:
                 platforminfo = " or run with a Python interpreter that has CAP_NET_RAW" if platform.system() == "Linux" else ""
-                raise IOError, "Permission denied.  Try again as a privileged user" + platforminfo + ". Error was {oops}".format(oops=oops)
+                raise IOError("Permission denied.  Try again as a privileged user" + platforminfo + ". Error was {oops}".format(oops=oops))
             else:
-                raise EnvironmentError, "Unexpected socket error: {error}: {oops}".format(error=sys.exc_value, oops=oops)
+                raise EnvironmentError("Unexpected socket error: {error}: {oops}".format(error=sys.exc_info()[1], oops=oops))
         if self.proto == "UDP":
             self.send_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, IPProtocol.number("UDP"))
             self._bind_source_info(self.send_udp_socket)
@@ -532,17 +556,18 @@ class Traceroute(object):
         elif self.udp():
             self.slist = [self.send_udp_socket]
             if self.port == 53 and self.options.payload is None:
-                payload = "945a01000001000000000000013801380138013807696e2d61646472046172706100000c0001".decode("hex")
+                # default UDP DNS payload: reverse lookup of 8.8.8.8
+                payload = decode_hex("945a01000001000000000000013801380138013807696e2d61646472046172706100000c0001")
             else:
-                payload = self.options.payload.decode("hex") if self.options.payload else "udp payload"
+                payload = decode_hex(self.options.payload) if self.options.payload else bytearray('udp payload', 'ascii')
             self.send_udp_socket.sendto(payload, (self.destination_addr, self.port))
             self.source_port = self.send_udp_socket.getsockname()[1]
         elif self.icmp():
             self.icmp_id = os.getpid() & 0xffff
-            payload = self.options.payload.decode("hex") if self.options.payload is not None else "icmp payload"
+            payload = decode_hex(self.options.payload) if self.options.payload is not None else bytearray('icmp payload', 'ascii')
             self.send_ping_packet(ttl, payload)
         else:
-            raise EnvironmentError, "self doesn't know what protocol to use"
+            raise EnvironmentError("self doesn't know what protocol to use")
 
     def _close_sockets(self):
         if self.proto == "TCP":
@@ -587,15 +612,6 @@ def parse_options(argv=None):
 
     if len(args) != 1:
         parser.error("missing destination address, please see the --help option")
-
-    if options.payload is not None:
-        try:
-            options.payload.decode("hex")
-        except TypeError:
-            parser.error("the --payload argument must be a valid hex string")
-
-    if options.icmp and options.port is not None:
-        parser.error("the --port option is not meaningful for ICMP traceroute")
 
     return (options, args)
 
@@ -657,11 +673,11 @@ def get_windows_main_ip():
     caller did not use the --source-ip option then we will assume they
     want to use the "main" interface, the first one with a default route.
     '''
-    routeinfo = subprocess.check_output(["netstat", "-rn"])
+    routeinfo = str(subprocess.check_output(["netstat", "-rn"]))
     try:
         return re.search(r'\b0\.0\.0\.0\s+0\.0\.0\.0\s+\S+\s+(\S+)', routeinfo).group(1).strip()
     except (IndexError, AttributeError):
-        raise EnvironmentError, 'unable to parse "netstat -rn" output to determine the IP of the interface with the default route'
+        raise EnvironmentError('unable to parse "netstat -rn" output to determine the IP of the interface with the default route')
 
 def qpython_invocation(script=__file__):
     # are we in the Android QPython normal user environment?
@@ -691,7 +707,7 @@ def main(cmdline=sys.argv[1:]):
         return 0 if thishop.reached else 1
     except (ValueError, IOError) as oops:
         print("invalid parameters: {oops}".format(oops=oops))
-        sys.exit(1)
+        return 2
 
 
 if __name__ == "__main__":

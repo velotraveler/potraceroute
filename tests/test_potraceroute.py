@@ -2,6 +2,7 @@
 
 import unittest
 
+from binascii import a2b_hex as decode_hex
 import platform
 import socket
 import sys
@@ -23,10 +24,10 @@ class TestPoTracerouteClasses(unittest.TestCase):
             'udp_length': 6,
             'udp_checksum': 3085,
             '_parsed_length': 8,
-            'payload': '012345',
+            'payload': b'012345',
         }
-        self.assertEqual(hopeful_result, IPParse.parse_udp("\x00\x16\x04\x00\x00\x06\x0c\x0d\x30\x31\x32\x33\x34\x35"), "UDP parse not working properly")
-        packet = "45002f0019770000fe014e2fa6540159a654071203035235000000004500002700000000021163b3a6540712a6540159eadf001900131d07756470207061796c6f6164".decode("hex")
+        self.assertEqual(hopeful_result, IPParse.parse_udp(b"\x00\x16\x04\x00\x00\x06\x0c\x0d\x30\x31\x32\x33\x34\x35"), "UDP parse not working properly")
+        packet = decode_hex("45002f0019770000fe014e2fa6540159a654071203035235000000004500002700000000021163b3a6540712a6540159eadf001900131d07756470207061796c6f6164")
         ipfields = IPParse.parse_ip(packet)
         icmpfields = IPParse.parse_icmp(ipfields['payload'])
         rp_ipfields = IPParse.parse_ip(icmpfields['payload'])
@@ -35,17 +36,20 @@ class TestPoTracerouteClasses(unittest.TestCase):
         self.assertEqual(icmpfields['icmp_type'], 3, "ICMP type parse failure")
         self.assertEqual(icmpfields['icmp_code'], 3, "ICMP code parse failure")
         self.assertEqual(icmpfields['icmp_id'], 0, "ICMP ID parse failure")
-        self.assertEqual(icmpfields['payload'], "E\x00\x00'\x00\x00\x00\x00\x02\x11c\xb3\xa6T\x07\x12\xa6T\x01Y\xea\xdf\x00\x19\x00\x13\x1d\x07udp payload", "ICMP payload parse failure")
-        self.assertEqual({'_parsed_length': 8, 'udp_length': 19, 'source_port': 60127, 'udp_checksum': 7431, 'payload': 'udp payload', 'dest_port': 25}, rp_udpfields)
+        self.assertEqual(icmpfields['payload'], b"E\x00\x00'\x00\x00\x00\x00\x02\x11c\xb3\xa6T\x07\x12\xa6T\x01Y\xea\xdf\x00\x19\x00\x13\x1d\x07udp payload", "ICMP payload parse failure")
+        self.assertEqual({'_parsed_length': 8, 'udp_length': 19, 'source_port': 60127, 'udp_checksum': 7431, 'payload': b'udp payload', 'dest_port': 25}, rp_udpfields)
         nested = IPPacket(ICMPPacket(IPPacket(packet).payload).payload)
         self.assertEqual(nested.ip_ttl, 2, "nested packet parsing failure - ttl")
-        self.assertTrue(nested.payload.endswith("udp payload"), "nested packet parsing failure - payload")
+        self.assertTrue("udp payload" in str(nested.payload), "nested packet parsing failure - payload")
+        repr = IPPacket(packet).__repr__()
+        self.assertEqual(type(repr), str)
 
     def test_icmp_fields(self):
         self.assertEqual(ICMPFields.UnreachableCode(3), 'Port Unreachable')
         self.assertEqual(ICMPFields.UnreachableCode(14), str(14))
         self.assertEqual(ICMPFields.Type(11), 'TTL Exceeded')
         self.assertEqual(ICMPFields.Type(31), str(31))
+        self.assertEqual(ICMPFields.CodeString(3, 9, verbose=True), 'ICMP Network Unreachable/Network Administratively Prohibited')
 
     def test_protocol_numbers(self):
         i = IPProtocol.number("icmp")
@@ -57,6 +61,13 @@ class TestPoTracerouteClasses(unittest.TestCase):
         with self.assertRaises(KeyError) as testoops:
             IPProtocol.number("frog is not a protocol")
 
+    def test_windows_features(self):
+        if is_windows() or is_cygwin():
+            x = get_windows_main_ip()
+        else:
+            with self.assertRaises(EnvironmentError) as testoops:
+                x = get_windows_main_ip()
+
     def test_misc_traceroute_class(self):
         (options, args) = parse_options(["--port", knownportname, knownhost])
         t = Traceroute(options, knownhost)
@@ -64,6 +75,17 @@ class TestPoTracerouteClasses(unittest.TestCase):
         self.assertEqual(t.portnumber_of(123), 123)
         with self.assertRaises(ValueError) as testoops:
             t.portnumber_of("frog is not a service name")
+        with self.assertRaises(ValueError) as testoops:
+            (options, args) = parse_options(["--icmp", "--udp", "8.8.8.8"])
+            t = Traceroute(options, knownhost)
+        with self.assertRaises(ValueError) as testoops:
+            (options, args) = parse_options(["--icmp", "--payload", "not a hex string", "8.8.8.8"])
+            t = Traceroute(options, knownhost)
+        with self.assertRaises(socket.error) as testoops:
+            (options, args) = parse_options(["--port", "65536", "8.8.8.8"])
+            t = Traceroute(options, knownhost)
+        with self.assertRaises(SystemExit) as testoops:
+            main(["--port", "1"])
 
     def test_traceroute_init_tcp(self):
         (options, args) = parse_options(["--port", knownportname, knownhost])
@@ -75,7 +97,7 @@ class TestPoTracerouteClasses(unittest.TestCase):
     def test_traceroute_hop_class(self):
         (options, args) = parse_options(["--port", knownportname, knownhost])
         t = Traceroute(options, knownhost)
-        h = TracerouteHop(t, 5, "test object", rxpacket="45c048008fa800003a017ee7d155f295a65407120b00b2a80000000045800040000040000106bbc2a654071208080808ffa10035ad0ce22d00000000b002800069750000020405b401030303040201010101080a0000000100000000".decode("hex"))
+        h = TracerouteHop(t, 5, "test object", rxpacket=decode_hex("45c048008fa800003a017ee7d155f295a65407120b00b2a80000000045800040000040000106bbc2a654071208080808ffa10035ad0ce22d00000000b002800069750000020405b401030303040201010101080a0000000100000000"))
         self.assertEqual(str(h), "5\t209.85.242.149 (209.85.242.149) test object", "hop __repr__ not working as expected")
 
     def runConnectivityTest(self, opts, hostname, reachable=True, finalSuffix=None, mustContain=None):
@@ -88,7 +110,10 @@ class TestPoTracerouteClasses(unittest.TestCase):
             if finalSuffix is not None:
                 self.assertTrue(str(h).endswith(finalSuffix), "expected a reachable traceroute to host {host} with options {opts} to have a status message ending in '{finalSuffix}' but message was '{msg}'".format(host=hostname, opts=opts, finalSuffix=finalSuffix, msg=str(h)))
             if mustContain is not None:
-                self.assertIn(mustContain, str(h), "expected reachable traceroute to host {host} with options {opts} to have status message containing '{mustContain}' but message was '{msg}'".format(host=hostname, opts=opts, mustContain=mustContain, msg=str(h)))
+                if type(mustContain) is not list:
+                    mustContain = [mustContain]
+                for mc in mustContain:
+                    self.assertIn(mc, str(h), "expected reachable traceroute to host {host} with options {opts} to have status message containing '{mustContain}' but message was '{msg}'".format(host=hostname, opts=opts, mustContain=mc, msg=str(h)))
         if not hostname.startswith("127."): # localhost is only one hop away
             h = t.probe(1)
             self.assertFalse(h.reached, "did not expect to reach with one hop host {host} with options {opts}".format(host=hostname, opts=opts))
@@ -111,19 +136,27 @@ class TestPoTracerouteClasses(unittest.TestCase):
         
         self.runConnectivityTest(["--port", "http"], "google.com", reachable=True, finalSuffix="TCP port 80 connection successful. [Reached Destination]")
         if platform.system() not in ['AIX', 'NetBSD']:
-            self.runConnectivityTest(["--icmp"], "google.com", reachable=True, finalSuffix=") ICMP echo reply [Reached Destination]")
-        self.runConnectivityTest(["--udp", "--port", "53"], "8.8.8.8", reachable=True, finalSuffix="\\x13google-public-dns-a\\x06google\\x03com\\x00'", mustContain="UDP port 53 responded, received data:")
+            self.runConnectivityTest(["--icmp", "--payload", "010203"], "google.com", reachable=True, finalSuffix=") ICMP echo reply [Reached Destination]")
+        self.runConnectivityTest(["--udp", "--port", "53"], "8.8.8.8", reachable=True, mustContain=["\\x13google-public-dns-a\\", "UDP port 53 responded, received data:"])
         if platform.system() not in ['AIX', 'NetBSD']:
             self.runConnectivityTest(["--icmp"], "8.8.8.1", reachable=False, finalSuffix="*\ttimed out")
         if platform.system() not in ['Windows', 'NetBSD'] and not platform.system().startswith("CYGWIN"):
             self.runConnectivityTest(["--port", "1"], "127.0.0.1", reachable=True, finalSuffix="TCP port 1 connection refused [Reached Destination]")
-        self.runConnectivityTest(["--port", "25"], "smtp.gmail.com", reachable=True, mustContain="TCP port 25 connection successful, received data: '")
+        self.runConnectivityTest(["--port", "25"], "smtp.gmail.com", reachable=True, mustContain="TCP port 25 connection successful, received data: ")
+
+    def test_additional_coverage(self):
+        self.assertEqual(0, main(["--port", "53", "8.8.8.8"]), "unable to reach Google DNS on TCP port 53")
+        if is_windows():
+            self.assertRegexpMatches(get_windows_main_ip(), r'^\d{1,3}(\.\d{1,3}){3}$')
+        else:
+            with self.assertRaises(EnvironmentError) as testoops:
+                get_windows_main_ip()
 
 if __name__ == "__main__":
     if is_android() and os.getuid() != 0:
         qpython_invocation(script=__file__)
     unittest.main()
-   
+
 
 # test scenario - asssumes 1.0.0.99 is not a local router
 # provoke local unreachable error when writing to ping socket
