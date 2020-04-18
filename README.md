@@ -11,9 +11,9 @@ that could be easily copied onto the target computer, via copy/paste if
 necessary.
 
 ## FEATURES
-* single Python file runs on Linux, MacOS, NetBSD, FreeBSD, Solaris,
+* single Python file runs on Linux, MacOS, NetBSD, FreeBSD, OpenBSD, Solaris,
 Windows 10, Android (root access needed, tested on LineageOS 14.1 with
-QPython 2.5.0).  AIX and OpenBSD should also work but not verified yet.
+QPython 2.5.0) and AIX.
 * supports TCP/UDP/ICMP traceroute
 * runs under Python 2.7 or Python 3
 * says what kind of traceroute is being run and to what port, so there's
@@ -126,7 +126,7 @@ For more examples, see the file tests/test_potraceroute.py
 
 ## LIMITATIONS / POSSIBLE FUTURE WORK
 * Add MTU detection
-* ICMP probes do not work as expected on AIX and NetBSD, the network
+* ICMP mode does not work as expected on AIX and NetBSD, the network
 stack seems to ignore the TTL setting on raw ICMP sockets.
 Should be possible using a raw IP socket instead.
 * The state of a successful TCP probe (i.e. connection accepted or
